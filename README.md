@@ -1,4 +1,6 @@
 # Slide-In-Gui
+Requires AutoHotkey v2
+
 When mouse is hovering on the right side of the screen, a gui will slide out. Click on the text to call a function.
 
 There are a few variables near the top you can adjust to your liking.
