@@ -47,8 +47,7 @@ Slide_In_Gui.AddText('Center', 'Mainframe').OnEvent('Click', (*) => MsgBox('Four
 
 Slide_In_Gui.Show('x' A_ScreenWidth ' yCenter AutoSize')	; show to get positions
 
-id := WinGetID(Slide_In_Gui)  ; important for knowing if mouse is over gui to keep it open
-WinGetPos(, &gui_top_position, &guiWidth, &guiHeight, Slide_In_Gui)  ; get width of gui
+Slide_In_Gui.GetPos(, &gui_top_position, &guiWidth, &guiHeight)
 guiFinalPosition := A_ScreenWidth - guiWidth + 1	; +0 left a pixel space, +1 fixes that, not sure if v2 bug
 
 RoundedCorners(15)      ; rounded corners
@@ -78,7 +77,7 @@ MousePosition() {
     MouseGetPos(&mouse_x_position, &mouse_y_position, &isGuiWindow)    ; get position of mouse
 
 	; mouse_x_position evaluation here is only because I have a monitor on the right that interfered with this process under the right condition
-    if isGuiWindow = id && mouse_x_position < A_ScreenWidth {	; if mouse is over gui, don't check mouse position or slide out gui
+    if isGuiWindow = Slide_In_Gui.Hwnd && mouse_x_position < A_ScreenWidth {	; if mouse is over gui, don't check mouse position or slide out gui
 		if !slide_in {		; prevents the menu from sliding out if mouse is over it, even when it's already sliding out (slides it back in)
 			Slide_In_Gui.Restore()
 			trigger_area.Hide()			; hide trigger area
@@ -109,7 +108,7 @@ MousePosition() {
 
 SlideGui() {
     global
-    try WinGetPos(&guiX,,,, Slide_In_Gui)
+    try Slide_In_Gui.GetPos(&guiX)
 	catch {
 		SetTimer(SlideGui, 0)
 		slide_in := false
@@ -119,35 +118,34 @@ SlideGui() {
     if slide_in {
 		if (guiX - offsetModifier) = guiFinalPosition  {   ; if new position is equal to the final position, stop sliding
             SetTimer(SlideGui, 0)
-			WinMove(guiFinalPosition,,,, Slide_In_Gui)   ; determines if adding or subtracting offsetModifier (sliding in vs sliding out)
+            Slide_In_Gui.Move(guiFinalPosition)
         }
-      
         else if (guiX - offsetModifier) < guiFinalPosition  {                 ; if new position exceeds the final position, adjust it to the final position
           SetTimer(SlideGui, 0)
-          WinMove(guiFinalPosition,,,, Slide_In_Gui)
+          Slide_In_Gui.Move(guiFinalPosition)
         }
 		else
-			WinMove(guiX + -offsetModifier,,,, Slide_In_Gui)   ; determines if adding or subtracting offsetModifier (sliding in vs sliding out)
+            Slide_In_Gui.Move(guiX + -offsetModifier)       ; determines if adding or subtracting offsetModifier (sliding in vs sliding out)
     }
 
     else {
-        if (guiX + offsetModifier) = A_ScreenWidth {    ; if new position stops at the initial position, stop sliding
+        if (guiX + offsetModifier) = A_ScreenWidth {        ; if new position stops at the initial position, stop sliding
             SetTimer(SlideGui, 0)
-			WinMove(A_ScreenWidth,,,, Slide_In_Gui)   ; determines if adding or subtracting offsetModifier (sliding in vs sliding out)
+            Slide_In_Gui.Move(A_ScreenWidth)
             Slide_In_Gui.Hide()
 		}
-		else if (guiX + offsetModifier) > A_ScreenWidth {                ; if new position exceeds the initial position, adjust it to the initial position
+		else if (guiX + offsetModifier) > A_ScreenWidth {   ; if new position exceeds the initial position, adjust it to the initial position
 			SetTimer(SlideGui, 0)
-            WinMove(A_ScreenWidth,,,, Slide_In_Gui)
+            Slide_In_Gui.Move(A_ScreenWidth)
             Slide_In_Gui.Hide()
 		}
 		else
-			WinMove(guiX + offsetModifier,,,, Slide_In_Gui)   ; determines if adding or subtracting offsetModifier (sliding in vs sliding out)
+            Slide_In_Gui.Move(guiX + offsetModifier)
     }
 }
 
 RoundedCorners(curve) {     ; dynamically rounds the corners of the gui, param is the curve radius as an integer
-    WinGetPos(,, &width, &height, Slide_In_Gui)
+    Slide_In_Gui.GetPos(,, &width, &height)
     width   := 'w' width
     height  := 'h' height
     WinSetRegion('0-0 ' width ' ' height ' r' curve '-' curve, Slide_In_Gui)
