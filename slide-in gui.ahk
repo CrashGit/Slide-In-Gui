@@ -98,7 +98,6 @@ MousePosition() {
 
     else {
         if slide_in {
-			trigger_area.Restore()		; show trigger area
             slide_in := false
             SetTimer(SlideGui, 10)
         }
@@ -116,28 +115,20 @@ SlideGui() {
 	}
     
     if slide_in {
-		if (guiX - offsetModifier) = guiFinalPosition  {   ; if new position is equal to the final position, stop sliding
+		if (guiX - offsetModifier) <= guiFinalPosition  {   ; if new position is equal to the final position, stop sliding
             SetTimer(SlideGui, 0)
             Slide_In_Gui.Move(guiFinalPosition)
-        }
-        else if (guiX - offsetModifier) < guiFinalPosition  {                 ; if new position exceeds the final position, adjust it to the final position
-          SetTimer(SlideGui, 0)
-          Slide_In_Gui.Move(guiFinalPosition)
         }
 		else
             Slide_In_Gui.Move(guiX + -offsetModifier)       ; determines if adding or subtracting offsetModifier (sliding in vs sliding out)
     }
 
     else {
-        if (guiX + offsetModifier) = A_ScreenWidth {        ; if new position stops at the initial position, stop sliding
+        if (guiX + offsetModifier) >= A_ScreenWidth {        ; if new position stops at the initial position, stop sliding
             SetTimer(SlideGui, 0)
             Slide_In_Gui.Move(A_ScreenWidth)
             Slide_In_Gui.Hide()
-		}
-		else if (guiX + offsetModifier) > A_ScreenWidth {   ; if new position exceeds the initial position, adjust it to the initial position
-			SetTimer(SlideGui, 0)
-            Slide_In_Gui.Move(A_ScreenWidth)
-            Slide_In_Gui.Hide()
+            trigger_area.Restore()		; show trigger area
 		}
 		else
             Slide_In_Gui.Move(guiX + offsetModifier)
@@ -146,9 +137,7 @@ SlideGui() {
 
 RoundedCorners(curve) {     ; dynamically rounds the corners of the gui, param is the curve radius as an integer
     Slide_In_Gui.GetPos(,, &width, &height)
-    width   := 'w' width
-    height  := 'h' height
-    WinSetRegion('0-0 ' width ' ' height ' r' curve '-' curve, Slide_In_Gui)
+    WinSetRegion('0-0 w' width ' h' height ' r' curve '-' curve, Slide_In_Gui)
 }
 
 
