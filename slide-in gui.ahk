@@ -137,7 +137,7 @@ SlideGui() {
 
 RoundedCorners(curve) {     ; dynamically rounds the corners of the gui, param is the curve radius as an integer
     Slide_In_Gui.GetPos(,, &width, &height)
-    WinSetRegion('0-0 w' width ' h' height ' r' curve '-' curve, Slide_In_Gui)
+    WinSetRegion('0-0 w' width+20 ' h' height ' r' curve '-' curve, Slide_In_Gui)
 }
 
 
