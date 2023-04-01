@@ -16,7 +16,7 @@ highlighted_text_color  := 'cea84bb'  ; color of text when mouse is over it
 gui_color               := '1d1f21'     ; gui BackColor
 how_far_from_the_edge   := 30           ; how many pixels within the right side of the screen for the gui to trigger
 vertical_tolerance      := 50           ; how many pixels above and below the gui will trigger the gui
-slide_in 		        := false        ; keep track of gui state
+slide_in:= false        ; keep track of gui state
 
 
 InTrigger_Area() {	; defines the area the gui will start to slide in
