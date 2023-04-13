@@ -1,7 +1,29 @@
 ;---------------------------------------------------------------------------------------------------------------------------
 ; INSTRUCTIONS
-; adjust the variables below as you see fit, lines 13-18
-; line 40 is where the text controls start, add as needed and change the callback function to whatever function you desire
+;
+; By default when starting the script, you will see a transparent area on the right side of the screen indicating
+; where the mouse has to be for the gui to slide in. If you don't want this, you have two options:
+;
+; Option 1: Set transparency property to 1.
+; Everything will still be able to operate as intended with no other change.
+; However, this doesn't remove the activation area gui, it only makes it barely visible.
+; If you're still noticing it when you're not looking for it and don't want it, follow Option 2's instructions.
+;
+; Option 2: Remove or comment out all lines that mention Activation_Area_Gui.
+; This will break the check for the gui so, you will then have to uncomment the alternative check in the MousePosition() method.
+;
+;
+; Extra Info:
+; In the MousePosition() method, it starts with a check if the current window is fullscreen. If the active window is fullscreen,
+; the gui doesn't slide in. Designed this way because it would trigger during gaming and messed with gameplay. If you still want the
+; slide-in gui to function in other fullscreen windows, you can use a hotkey to toggle it on and off for fullscreen apps.
+; Example: ^F2::SlideGui.Toggle_Fullscreen_Exception()
+; If you don't game, you can probably safely remove this check.
+;
+; You can even enable and disable the menu altogether with a hotkey.
+; Example: ^F1::SlideGui.Toggle_Gui()
+;
+; Be sure to look at the comments for the properties in case there's something you want to alter to your liking :)
 ;---------------------------------------------------------------------------------------------------------------------------
 
 #SingleInstance
@@ -9,150 +31,222 @@ SetWinDelay(-1)
 CoordMode('Mouse')
 
 
-; adjust these variables if you prefer different speeds or colors
-offsetModifier 	        := 10           ; adjust this number to how fast you want the gui to slide in and out
-default_text_color      := 'c87e6fb'  ; starting text color
-highlighted_text_color  := 'cea84bb'  ; color of text when mouse is over it
-gui_color               := '1d1f21'     ; gui BackColor
-how_far_from_the_edge   := 30           ; how many pixels within the right side of the screen for the gui to trigger
-vertical_tolerance      := 50           ; how many pixels above and below the gui will trigger the gui
-slide_in:= false        ; keep track of gui state
+SlideGui.Create_Gui()
 
 
-InTrigger_Area() {	; defines the area the gui will start to slide in
-	return mouse_x_position > (A_ScreenWidth - how_far_from_the_edge) and mouse_x_position < A_ScreenWidth &&                               ; mouse_x_position is within the last 30 pixels of the screen
-	(mouse_y_position > (gui_top_position - vertical_tolerance) and mouse_y_position < (gui_top_position + guiHeight + vertical_tolerance))	; mouse_y_position is within 50 pixels above and below gui height
-} 
+class SlideGui {
+    ; properties
+    static offsetModifier 	        := 10           ; adjust this number to how fast you want the gui to slide in and out
+    static default_text_color       := 'c21e648'  ; starting text color
+    static highlighted_text_color   := 'cffffff'  ; color of text when mouse is over it
+    static gui_color                := '111111'     ; gui BackColor
+    static how_far_from_the_edge    := 30           ; how many pixels within the right side of the screen for the gui to trigger
+    static vertical_tolerance       := 50           ; how many pixels above and below the gui will trigger the gui
+    static transparency             := 10           ; default transparency of activation area, if you don't want this to be visible, set it to 1 so that this will still function
+    static fullscreenException      := false        ; changing this via a hotkey with the Toggle_Fullscreen_Exception() method can let the gui work in fullscreen apps
+
+
+
+    ; methods
+    static CheckMousePosition       := ObjBindMethod(this, 'MousePosition')
+    static CheckIfTextIsUnderCursor := ObjBindMethod(this, 'TextColorChangeOnMouseOver')
+    static Slide_Gui_In             := ObjBindMethod(this, 'Slide_In')
+    static Slide_Gui_Out            := ObjBindMethod(this, 'Slide_Out')
+
+
+
+
+    ; constanly get mouse position and id of window under the cursor
+    ; to determine if if gui should slide in or out
+    static MousePosition() {
+        ; if app is fullscreen and toggle for exception is false
+        if this.Fullscreen() and not this.fullscreenException {
+            WinSetTransparent(0, this.Activation_Area_Gui)
+            return
+        }
+         else WinSetTransparent(this.transparency, this.Activation_Area_Gui)
+
+
+        ; get mouse position and ID of window under the cursor
+        MouseGetPos(&mouse_x_position, &mouse_y_position)    ; get position of mouse
+        this.Sliding_Gui.GetPos(, &gui_top_position, &guiWidth, &guiHeight)
+
+
+        ; alternate check if you're removing all traces of Activation_Area_Gui per the instructions at the beginning of the script
+        ; if (InTrigger_Area() or this.MouseIsOver(this.Sliding_Gui)) and mouse_x_position < A_ScreenWidth {	; if mouse is over guis, slide in gui
+
+        ; mouse_x_position evaluation here is only because I have a monitor on the right that interfered
+        ; with this process if I moved my mouse onto the right monitor where the gui was sliding back to
+        if (this.MouseIsOver(this.Sliding_Gui) or this.MouseIsOver(this.Activation_Area_Gui)) and mouse_x_position < A_ScreenWidth {	; if mouse is over guis, slide in gui
+            WinSetTransparent(1, this.Activation_Area_Gui)  ; hide trigger area as best as possible
+            this.Sliding_Gui.Restore()
+            this.Slide_The_Gui_In()
+        }
+
+        else this.Slide_The_Gui_Out()
+
+
+        ; alternative to default check for mouse position
+        InTrigger_Area() {	; defines the area the gui will start to slide in
+            return mouse_x_position > (A_ScreenWidth - this.how_far_from_the_edge)  ; mouse_x_position is within the last 30 pixels (default) of the screen
+            and mouse_x_position < A_ScreenWidth
+            and (mouse_y_position > (gui_top_position - this.vertical_tolerance)    ; mouse_y_position is within 50 pixels (default) above and below gui height
+            and mouse_y_position < (gui_top_position + guiHeight + this.vertical_tolerance))
+        }
+    }
+
+
+
+
+    static Slide_In() {
+        try this.Sliding_Gui.GetPos(&guiX)
+        catch {
+            this.Slide_The_Gui_Out()
+            return
+        }
+
+        if (guiX - this.offsetModifier) <= this.guiFinalPosition  {   ; if new position is equal to the final position, stop sliding
+            this.Stop_Sliding_In()
+            this.Sliding_Gui.Move(this.guiFinalPosition) ; make sure it's in the final position
+        }
+        else this.Sliding_Gui.Move(guiX + -this.offsetModifier)       ; determines if adding or subtracting offsetModifier (sliding in vs sliding out)
+    }
+
+
+    static Slide_Out() {
+        try this.Sliding_Gui.GetPos(&guiX)
+        catch {
+            return
+        }
+
+        if (guiX + this.offsetModifier) >= A_ScreenWidth {        ; if new position stops at the initial position, stop sliding
+            this.Stop_Sliding_Out()
+            this.Sliding_Gui.Move(A_ScreenWidth)
+            this.Sliding_Gui.Hide()
+            WinSetTransparent(this.transparency, this.Activation_Area_Gui)		; show trigger area
+        }
+        else this.Sliding_Gui.Move(guiX + this.offsetModifier)
+    }
+
+
 
 ;-------------------------------------------------------------------------------
-; SLIDE-IN GUI
+; AUXILLARY METHODS
 ;-------------------------------------------------------------------------------
-global Slide_In_Gui := Gui('+AlwaysOnTop -SysMenu +ToolWindow -Caption -Border')
-Slide_In_Gui.MarginX := 6
-Slide_In_Gui.MarginY := 6
-Slide_In_Gui.BackColor := gui_color
-Slide_In_Gui.SetFont('s11 ' default_text_color, 'Segoe UI') 
+    static Toggle_Fullscreen_Exception() => this.fullscreenException := !this.fullscreenException
 
+    ; enable/disable gui
+    static Toggle_Gui() {
+        static gui_enabled := true
+        static transparency := this.transparency
 
+        gui_enabled := !gui_enabled
 
-;---------------------------------------------------------------------------------------------
-; Add new text controls as needed and use whatever callback function you need
-Slide_In_Gui.AddText('Center', 'Cut the').OnEvent('Click', (*) => MsgBox('First option clicked'))
-Slide_In_Gui.AddText('Center', 'Hardline').OnEvent('Click', (*) => MsgBox('Second option clicked'))
-Slide_In_Gui.AddText('Center', 'at the').OnEvent('Click', (*) => MsgBox('Third option clicked'))
-Slide_In_Gui.AddText('Center', 'Mainframe').OnEvent('Click', (*) => MsgBox('Fourth option clicked'))
-;---------------------------------------------------------------------------------------------
-
-
-
-Slide_In_Gui.Show('x' A_ScreenWidth ' yCenter AutoSize')	; show to get positions
-
-Slide_In_Gui.GetPos(, &gui_top_position, &guiWidth, &guiHeight)
-guiFinalPosition := A_ScreenWidth - guiWidth + 1	; +0 left a pixel space, +1 fixes that, not sure if v2 bug
-
-RoundedCorners(15)      ; rounded corners
-Slide_In_Gui.Hide()	    ; hide at start
-
-
-OnMessage(0x200, TextColorChangeOnMouseOver)      ; call this function when moving the mouse over the gui
-
-
-
-;---------------------------------------------------------------------------------------------
-; this section shows the area the mouse needs to be in for the gui to activate
-; it automatically expands depending on the amount of text controls
-; if you don't want this at all, delete this area and any lines with trigger_area mentioned
-trigger_area := Gui('+E0x20 +AlwaysOnTop -SysMenu +ToolWindow -Caption -Border')
-trigger_area.BackColor := 'ffffff'
-trigger_area.Show('x' A_ScreenWidth - how_far_from_the_edge ' y' gui_top_position - vertical_tolerance ' yCenter w30 h' guiHeight + (vertical_tolerance * 2))
-WinSetTransparent(5, trigger_area)  ; barely visible
-;---------------------------------------------------------------------------------------------
-
-
-SetTimer(MousePosition, 10)
-
-
-MousePosition() {
-    global
-    MouseGetPos(&mouse_x_position, &mouse_y_position, &isGuiWindow)    ; get position of mouse
-
-	; mouse_x_position evaluation here is only because I have a monitor on the right that interfered with this process under the right condition
-    if isGuiWindow = Slide_In_Gui.Hwnd && mouse_x_position < A_ScreenWidth {	; if mouse is over gui, don't check mouse position or slide out gui
-		if !slide_in {		; prevents the menu from sliding out if mouse is over it, even when it's already sliding out (slides it back in)
-			Slide_In_Gui.Restore()
-			trigger_area.Hide()			; hide trigger area
-            slide_in := true
-            SetTimer(SlideGui, 10)
+        if gui_enabled {
+            SetTimer(this.CheckMousePosition, 100)
+            this.transparency := transparency
+            WinSetTransparent(transparency, this.Activation_Area_Gui)
         }
-      return
-	}
-
-    if InTrigger_Area() { 	; if mouse is 30 pixels within the right side of the screen
-        if !slide_in {
-			Slide_In_Gui.Restore()
-			trigger_area.Hide()			; hide trigger area
-            slide_in := true
-            SetTimer(SlideGui, 10)
+        else {
+            SetTimer(this.CheckMousePosition, 0)
+            this.Slide_The_Gui_Out
+            this.transparency := 0
         }
     }
 
-    else {
-        if slide_in {
-            slide_in := false
-            SetTimer(SlideGui, 10)
+
+    static MouseIsOver(WinTitle*) {
+        MouseGetPos(,, &hwnd)
+        return hwnd = WinExist(WinTitle*)
+    }
+
+
+    static Slide_The_Gui_In() {
+        this.Stop_Sliding_Out()
+        SetTimer(this.Slide_Gui_In, 10)
+    }
+
+    static Slide_The_Gui_Out() {
+        this.Stop_Sliding_In()
+        SetTimer(this.Slide_Gui_Out, 10)
+    }
+
+    static Stop_Sliding_In() => SetTimer(this.Slide_Gui_In, 0)
+    static Stop_Sliding_Out() => SetTimer(this.Slide_Gui_Out, 0)
+
+
+    ; check if window is fullscreen
+    static Fullscreen() {
+        try	WinGetPos(,, &w, &h, 'A')   ; get window size
+        catch {
+           return true ; error kept popping up, might have been desktop active issue
         }
-    }   
-}
+        return (w = A_ScreenWidth && h = A_ScreenHeight) ; return true if fullscreen
+     }
 
 
-SlideGui() {
-    global
-    try Slide_In_Gui.GetPos(&guiX)
-	catch {
-		SetTimer(SlideGui, 0)
-		slide_in := false
-		return
-	}
-    
-    if slide_in {
-		if (guiX - offsetModifier) <= guiFinalPosition  {   ; if new position is equal to the final position, stop sliding
-            SetTimer(SlideGui, 0)
-            Slide_In_Gui.Move(guiFinalPosition)
-        }
-		else
-            Slide_In_Gui.Move(guiX + -offsetModifier)       ; determines if adding or subtracting offsetModifier (sliding in vs sliding out)
+    ; checks if mouse is over the text in the slide-in gui. if it is, change the color of that text
+     static TextColorChangeOnMouseOver(wParam, lParam, msg, hWnd)
+     {
+         static PrevHwnd := 0
+         currControl := GuiCtrlFromHwnd(hWnd)
+
+         if (currControl != PrevHwnd)
+         {
+             if currControl
+                 currControl.SetFont(this.highlighted_text_color)
+             else
+                 try PrevHwnd.SetFont(this.default_text_color)
+
+             PrevHwnd := currControl
+         }
+     }
+
+
+;-------------------------------------------------------------------------------
+; SLIDE-IN GUI AND ACTIVATION AREA
+;-------------------------------------------------------------------------------
+    static Create_Gui() {
+        this.Sliding_Gui := Gui('+AlwaysOnTop -SysMenu +ToolWindow -Caption -Border')
+        this.Sliding_Gui.MarginX := 6
+        this.Sliding_Gui.MarginY := 6
+        this.Sliding_Gui.BackColor := this.gui_color
+        this.Sliding_Gui.SetFont('s11 ' this.default_text_color, 'Segoe UI')
+
+
+        ; Add new/change text controls as needed and use whatever callback function you need
+        this.Sliding_Gui.AddText('Center', 'Cut the'    ).OnEvent('Click',  (*) => MsgBox('First option clicked'))
+        this.Sliding_Gui.AddText('Center', 'Hardline'   ).OnEvent('Click',  (*) => MsgBox('Second option clicked'))
+        this.Sliding_Gui.AddText('Center', 'at the'     ).OnEvent('Click',  (*) => MsgBox('Third option clicked'))
+        this.Sliding_Gui.AddText('Center', 'Mainframe'  ).OnEvent('Click',  (*) => MsgBox('Fourth option clicked'))
+
+
+        ; show gui at start to get the gui width to determine the final position the gui should sit when slid in
+        this.Sliding_Gui.Show('x' A_ScreenWidth ' yCenter AutoSize')
+            this.Sliding_Gui.GetPos(, &gui_top_position, &guiWidth, &guiHeight)
+            this.guiFinalPosition := A_ScreenWidth - guiWidth
+
+        this.RoundedCorners(15)
+        this.Sliding_Gui.Hide() ; hide gui
+
+
+        ; checks if mouse is over the text in the slide-in gui. if it is, change the color of that text
+        OnMessage(0x200, this.CheckIfTextIsUnderCursor)
+        ;---------------------------------------------------------------------------------------------
+        ; this section shows the area the mouse needs to be in for the gui to activate
+        ; it automatically expands depending on the amount of text controls
+        this.Activation_Area_Gui := Gui('+AlwaysOnTop -SysMenu +ToolWindow -Caption -Border') ; +E0x20')
+        this.Activation_Area_Gui.BackColor := 'ffffff'
+        this.Activation_Area_Gui.Show('x' A_ScreenWidth - this.how_far_from_the_edge ' y' gui_top_position - this.vertical_tolerance ' yCenter w30 h' guiHeight + (this.vertical_tolerance * 2))
+        WinSetTransparent(this.transparency, this.Activation_Area_Gui)  ; barely visible
+
+
+        SetTimer(this.CheckMousePosition, 100)
     }
 
-    else {
-        if (guiX + offsetModifier) >= A_ScreenWidth {        ; if new position stops at the initial position, stop sliding
-            SetTimer(SlideGui, 0)
-            Slide_In_Gui.Move(A_ScreenWidth)
-            Slide_In_Gui.Hide()
-            trigger_area.Restore()		; show trigger area
-		}
-		else
-            Slide_In_Gui.Move(guiX + offsetModifier)
+
+    static RoundedCorners(curve) {     ; dynamically rounds the corners of the gui, param is the curve radius as an integer
+        this.Sliding_Gui.GetPos(,, &width, &height)
+        WinSetRegion('0-0 w' width+20 ' h' height ' r' curve '-' curve, this.Sliding_Gui)
     }
-}
-
-RoundedCorners(curve) {     ; dynamically rounds the corners of the gui, param is the curve radius as an integer
-    Slide_In_Gui.GetPos(,, &width, &height)
-    WinSetRegion('0-0 w' width+20 ' h' height ' r' curve '-' curve, Slide_In_Gui)
-}
-
-
-TextColorChangeOnMouseOver(wParam, lParam, msg, Hwnd)
-{   
-    static PrevHwnd := 0
-    currControl := GuiCtrlFromHwnd(Hwnd)
-
-    if (currControl != PrevHwnd) 
-    {
-        if currControl 
-            currControl.SetFont(highlighted_text_color)
-        else 
-            try PrevHwnd.SetFont(default_text_color)
-
-        PrevHwnd := currControl
-    }
-}
+} ;;;;;;;;;;; END OF CLASS ;;;;;;;;;;;
